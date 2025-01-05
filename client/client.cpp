@@ -20,7 +20,7 @@ int main() {
     server_address.sin_port = htons(8080); // Порт сервера
 
     // Замените "192.168.1.100" на IP-адрес сервера
-    inet_pton(AF_INET, "192.168.1.100", &server_address.sin_addr);
+    inet_pton(AF_INET, "192.168.0.22", &server_address.sin_addr);
 
     if (connect(client_socket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
         cerr << "Ошибка подключения к серверу" << endl;
