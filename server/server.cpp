@@ -1,100 +1,73 @@
 #include <iostream>
 #include <string>
-#include <sstream>
+#include <thread>
+#include <vector>
+#include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <future>
-#include <mutex>
-#include <thread>
-#include <arpa/inet.h>
 
 using namespace std;
 
-mutex dbMutex;
-
-void requestProcessing(const int clientSocket, const sockaddr_in& clientAddress, string baseName){
-    char userMessage[1024] = {};
-    bool isExit = false;
-
-    while (!isExit){
-        bzero(userMessage, 1024);
-        const ssize_t userRead = read(clientSocket, userMessage, 1024);
-
-        if (userRead <= 0){
-            cerr << "Сlient [" << clientAddress.sin_addr.s_addr << "] disconnected" << endl;
-            isExit = true;
-            continue;
+void handle_client(int client_socket) {
+    char buffer[1024];
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received <= 0) {
+            cout << "Клиент отключился" << endl;
+            close(client_socket);
+            break;
         }
-
-        if (string(userMessage) == "EXIT"){
-            cerr << "Сlient [" << clientAddress.sin_addr.s_addr << "] disconnected" << endl;
-            isExit = true;
-            continue;
-        }
-
-        string result;
-        {
-            lock_guard<std::mutex> guard(dbMutex);
-            result = database(userMessage, baseName);
-        }
-
-        send(clientSocket, result.c_str(), result.size(), 0);
+        cout << "Сообщение от клиента: " << buffer << endl;
     }
-    close(clientSocket);
 }
 
-void startServer(string baseName){
-    const int server = socket(AF_INET, SOCK_STREAM, 0);
-    
-    if (server == -1){
-        cerr << "Socket creation error" << endl;
-        return;
+int main() {
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1) {
+        cerr << "Ошибка создания сокета" << endl;
+        return 1;
     }
 
-    sockaddr_in address{};
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    address.sin_port = htons(7432);
+    sockaddr_in server_address{};
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(8080); // Порт 8080
+    server_address.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(server, reinterpret_cast<struct sockaddr *>(&address), sizeof(address)) < 0){
-        cerr << "Binding error" << endl;
-        return;
-    }
-    
-    if (listen(server, 1) == -1){
-        cerr << "Socket listening error" << endl;
-        return;
+    if (bind(server_socket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
+        cerr << "Ошибка привязки сокета" << endl;
+        close(server_socket);
+        return 1;
     }
 
-    cout << "Server started" << endl;
+    if (listen(server_socket, 5) == -1) {
+        cerr << "Ошибка запуска прослушивания" << endl;
+        close(server_socket);
+        return 1;
+    }
 
-    sockaddr_in clientAddress{};
-    socklen_t clientAddLen = sizeof(clientAddress);
+    cout << "Сервер запущен и ожидает подключения на порту 8080..." << endl;
 
-    while (true){
-        int clientSocket = accept(server, reinterpret_cast<struct sockaddr *>(&clientAddress), &clientAddLen);
-        if (clientSocket == -1){ 
-            cout << "Connecting fail" << endl;
+    vector<thread> client_threads;
+    while (true) {
+        sockaddr_in client_address{};
+        socklen_t client_len = sizeof(client_address);
+        int client_socket = accept(server_socket, (struct sockaddr*)&client_address, &client_len);
+        if (client_socket == -1) {
+            cerr << "Ошибка подключения клиента" << endl;
             continue;
         }
-
-        cout << "Client [" << clientAddress.sin_addr.s_addr << "] was connected" << endl;
-
-        thread(requestProcessing, clientSocket, clientAddress, baseName).detach();
+        cout << "Клиент подключился" << endl;
+        client_threads.emplace_back(handle_client, client_socket);
     }
 
-    close(server);
-    cout << "Server stopped." << endl;
-}
+    for (auto& t : client_threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
 
-int main(){
-    string baseName;
-    readJson(baseName);
-
-    cout << "Database ready" << endl;
-
-    startServer(baseName);
-
+    close(server_socket);
     return 0;
 }
