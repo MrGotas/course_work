@@ -17,8 +17,10 @@ int main() {
 
     sockaddr_in server_address{};
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(8080); // Порт 8080
-    inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr); // IP-адрес сервера
+    server_address.sin_port = htons(8080); // Порт сервера
+
+    // Замените "192.168.1.100" на IP-адрес сервера
+    inet_pton(AF_INET, "192.168.1.100", &server_address.sin_addr);
 
     if (connect(client_socket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
         cerr << "Ошибка подключения к серверу" << endl;
