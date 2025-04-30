@@ -14,10 +14,10 @@
 
 3. **Соберите Docker-образ:**
    ```sh
-   docker build -t timetable .
+   sudo docker build -t timetable .
    ```
 
 4. **Запустите контейнер:**
    ```sh
-   docker run -e DATABASE_URL=ссылка_на_бд_из_.env -p 3000:3000 timetable
+   sudo docker run -e DATABASE_URL="postgresql://never:007822mmnn@10.0.2.15:5432/database" -p 3000:3000 timetable
    ```
